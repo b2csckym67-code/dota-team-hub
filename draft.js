@@ -28,9 +28,10 @@ function renderOverview(actions, side){
   buckets[step[0]===side?'our':'their'][step[1]].push(a);
  }
  const portrait=(a,type,i)=>{
-  if(!a)return `<div class="overview-slot empty" aria-label="${type} ${i+1} noch offen"><span>${i+1}</span></div>`;
-  const h=hById(a.hero_id),pos=type==='Pick'?(Number(a.position)||0):0;
-  return `<div class="overview-slot filled ${type==='Ban'?'ban':''}" title="${esc(h?.name||'Unbekannt')} · ${type} ${i+1}${pos?' · Pos '+pos:''}"><img loading="lazy" src="${img(h)}" alt="${esc(h?.name||'Unbekannt')}"><span class="overview-slot-index">${i+1}</span>${type==='Ban'?'<span class="overview-cross" aria-hidden="true">×</span>':''}${pos?`<span class="overview-pos">P${pos}</span>`:''}</div>`;
+  const ban=type==='Ban',code=(ban?'B':'P')+(i+1);
+  if(!a)return `<div class="overview-slot empty ${ban?'ban':''}" aria-label="${type} ${i+1} noch offen"><span class="overview-slot-index">${code}</span></div>`;
+  const h=hById(a.hero_id);
+  return `<div class="overview-slot filled ${ban?'ban':''}" title="${esc(h?.name||'Unbekannt')} · ${type} ${i+1}"><img loading="lazy" src="${img(h)}" alt="${esc(h?.name||'Unbekannt')}"><span class="overview-slot-index">${code}</span>${ban?'<span class="overview-cross" aria-hidden="true">×</span>':''}</div>`;
  };
  const team=(key,name)=>{
   const picks=Array.from({length:5},(_,i)=>portrait(buckets[key].pick[i],'Pick',i)).join('');

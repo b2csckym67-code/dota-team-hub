@@ -88,3 +88,18 @@ body:not(.site-locked) .site-lock{display:none}
 .analysis-result-panel h3{margin:0 0 12px}
 .analysis-result-fields{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end}
 @media(max-width:720px){.analysis-result-fields{grid-template-columns:1fr}}
+
+/* v10: larger ban portraits, smaller picks, legible B1/P1 order labels. */
+.overview-team-body{grid-template-columns:clamp(96px,28%,148px) minmax(0,1fr);gap:10px;align-items:start}
+.overview-ban-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+.overview-pick-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;align-items:start}
+.overview-slot{aspect-ratio:1.15;border-radius:5px}
+.overview-ban-grid .overview-slot{aspect-ratio:1.1}
+.overview-pick-grid .overview-slot{aspect-ratio:1.05}
+.overview-slot-index{left:3px;bottom:3px;padding:2px 5px;background:#081321ed;border:1px solid #ffffff66;border-radius:4px;color:#fff;font-size:clamp(11px,1vw,16px);line-height:1.15;font-weight:900;letter-spacing:.1px;text-shadow:0 1px 2px #000;z-index:1}
+.overview-ban-grid .overview-slot-index{font-size:clamp(13px,1.2vw,18px)}
+.overview-slot.empty .overview-slot-index{position:static;background:transparent;border:0;color:#90a4bd;text-shadow:none}
+.overview-cross{right:3px;top:-4px;font-size:clamp(20px,2vw,28px);line-height:1.1;text-shadow:0 2px 4px #000}
+.overview-pos{display:none!important}
+@media(max-width:900px){.overview-team-body{grid-template-columns:clamp(68px,30%,110px) minmax(0,1fr);gap:5px}.overview-ban-grid{gap:3px}.overview-slot-index{font-size:11px;padding:1px 3px}.overview-ban-grid .overview-slot-index{font-size:12px}}
+@media(max-width:600px){.overview-team-body{grid-template-columns:48px minmax(0,1fr);gap:3px}.overview-ban-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:2px}.overview-pick-grid{gap:2px}.overview-slot-index,.overview-ban-grid .overview-slot-index{font-size:9px;padding:1px 2px;left:1px;bottom:1px}.overview-cross{font-size:14px;right:0;top:-2px}}
