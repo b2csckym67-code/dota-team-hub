@@ -47,19 +47,82 @@ function renderRecommendations(){if(!state.loaded)return;
  }).join('');
 }
 let archives=[],selectedArchive=null;
-async function loadArchives(){const {data,error}=await db.from('draft_archives').select('*').order('created_at',{ascending:false});if(error)throw error;archives=data||[];const select=el('draft-archive-select'),prev=String(selectedArchive?.id||select.value||'');select.innerHTML='<option value="">Draft auswählen</option>'+archives.map(a=>`<option value="${a.id}">${esc(a.name)} · ${new Date(a.created_at).toLocaleString('de-DE')}</option>`).join('');if(archives.some(a=>String(a.id)===prev))select.value=prev;}
-function archiveSummary(a){const actions=Array.isArray(a.actions)?a.actions:[];return `<p><b>${esc(a.name)}</b> · ${actions.length}/24 Aktionen · ${a.our_side==='first'?'First Pick':'Second Pick'}</p><div class="draft-history">${actions.map(x=>{const step=order[Number(x.turn_number)-1];return `<div><span>${x.turn_number}. ${step?(step[0]===a.our_side?'Wir':'Gegner'):'?'} · ${step?.[1]==='pick'?'Pick':'Ban'}</span><b>${esc(hById(x.hero_id)?.name||'?')}</b></div>`}).join('')}</div>`}
-async function selectArchive(){const id=Number(el('draft-archive-select').value);selectedArchive=archives.find(a=>Number(a.id)===id)||null;el('draft-archive-summary').innerHTML=selectedArchive?archiveSummary(selectedArchive):'<p>Gespeicherten Draft auswählen.</p>';await loadComments();}
-async function saveArchive(){if(!state.loaded)return;const name=el('draft-save-name').value.trim();if(!name){notice('Bitte einen Draft-Namen eingeben.');return}const {data,error}=await db.from('draft_archives').insert({name,our_side:state.side,actions:state.actions.map(a=>({turn_number:a.turn_number,hero_id:a.hero_id}))}).select().single();if(error){notice('Speichern fehlgeschlagen: '+error.message);return}selectedArchive=data;el('draft-save-name').value='';await loadArchives();el('draft-archive-select').value=String(data.id);await selectArchive();notice('Draft gespeichert.');}
+async function loadArchives(){const {data,error}=await db.from('draft_archives').select('*').order('created_at',{ascending:false});if(error)throw error;archives=data||[];const select=el('draft-archive-select'),prev=String(selectedArchive?.id||select.value||'');select.innerHTML='<option value="">Draft auswählen</option>'+archives.map(a=>`<option value="${a.id}">${esc(a.name)} · ${new Date(a.created_at).toLocaleString('de-DE')}</option>`).join('');if(archives.some(a=>String(a.id)===prev))select.value=prev;const analysis=el('analysis-select');analysis.innerHTML=select.innerHTML;if(archives.some(a=>String(a.id)===prev))analysis.value=prev;}
+function inferredPosition(a,archive){
+ const explicit=Number(a.position);if(explicit>=1&&explicit<=5)return explicit;
+ const data=window.getDraftData?.()||{ratings:[],roster:[]};
+ const eligible=data.ratings.filter(r=>Number(r.hero_id)===Number(a.hero_id));
+ const assigned=eligible.filter(r=>data.roster.some(x=>Number(x.position)===Number(r.position)&&String(x.player_id)===String(r.player_id)));
+ const best=(assigned.length?assigned:eligible).sort((x,y)=>Number(y.confidence)-Number(x.confidence))[0];
+ return best?Number(best.position):0;
+}
+function archiveSummary(a){
+ const actions=Array.isArray(a.actions)?a.actions:[];
+ const sideNames=['Unser Team','Gegnerteam'];
+ const cols=sideNames.map((name,i)=>`<div class="analysis-team-title">${name}</div>`).join('');
+ const rows=actions.map((action,i)=>{
+  const step=order[Number(action.turn_number)-1];if(!step)return '';
+  const ours=step[0]===a.our_side, pick=step[1]==='pick';
+  const hero=hById(action.hero_id), pos=Number(action.position)||0;
+  const count=actions.slice(0,i+1).filter(x=>{const st=order[Number(x.turn_number)-1];return st&&st[0]===step[0]&&st[1]===step[1]}).length;
+  const options='<option value="0">Position offen</option>'+[1,2,3,4,5].map(p=>`<option value="${p}" ${pos===p?'selected':''}>Pos ${p}</option>`).join('');
+  const content=`<div class="analysis-action ${pick?'is-pick':'is-ban'}"><span class="analysis-step">${pick?'Pick':'Ban'} ${count} · Schritt ${action.turn_number}</span><div class="analysis-hero"><img src="${img(hero)}" alt=""><strong>${esc(hero?.name||'Unbekannt')}</strong></div>${pick?`<label>Position<select class="analysis-position" data-turn="${action.turn_number}" aria-label="Position für ${esc(hero?.name||'Pick')}">${options}</select></label>`:''}</div>`;
+  return `<div class="analysis-turn"><div class="analysis-side">${ours?content:''}</div><div class="analysis-side">${ours?'':content}</div></div>`;
+ }).join('');
+ return `<div class="analysis-summary-header"><div><strong>${esc(a.name)}</strong><p>${actions.length}/24 Aktionen · ${a.our_side==='first'?'Unser Team: First Pick':'Unser Team: Second Pick'} · ${new Date(a.created_at).toLocaleString('de-DE')}</p></div><button id="analysis-save-positions" type="button" class="secondary">Positionen speichern</button></div><div class="analysis-columns">${cols}</div><div class="analysis-timeline">${rows||'<p>Noch keine Aktionen gespeichert.</p>'}</div><p class="hint">Picks können Position 1–5 zugewiesen werden. Die Zuordnung wird im gespeicherten Draft hinterlegt. Bans bleiben chronologisch sichtbar.</p>`;
+}
+async function selectArchive(id){
+ const selectedId=id===''?0:Number(id||el('analysis-select').value||el('draft-archive-select').value);
+ selectedArchive=archives.find(a=>Number(a.id)===selectedId)||null;
+ el('analysis-select').value=selectedArchive?String(selectedArchive.id):'';
+ el('draft-archive-select').value=selectedArchive?String(selectedArchive.id):'';
+ el('draft-archive-summary').innerHTML=selectedArchive?archiveSummary(selectedArchive):'<p>Gespeicherten Draft auswählen.</p>';
+ el('analysis-meta').textContent=selectedArchive?`Erstellt: ${new Date(selectedArchive.created_at).toLocaleString('de-DE')}`:'Noch kein Draft ausgewählt';
+ el('analysis-delete').disabled=!selectedArchive;
+ await loadComments();
+}
+async function deleteArchive(){
+ if(!selectedArchive)return notice('Zuerst einen gespeicherten Draft auswählen.');
+ const target=selectedArchive;
+ if(!confirm(`Gespeicherten Draft "${target.name}" und alle zugehörigen Kommentare dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden. Der aktive Captain’s-Mode-Draft bleibt unverändert.`))return;
+ const button=el('analysis-delete');button.disabled=true;
+ try{
+  const {data,error}=await db.from('draft_archives').delete().eq('id',target.id).select('id');
+  if(error)throw error;
+  if(!data?.length)throw new Error('Der Draft konnte nicht gelöscht werden (keine Berechtigung oder nicht gefunden).');
+  selectedArchive=null;
+  el('draft-comment-text').value='';
+  await loadArchives();
+  await selectArchive('');
+  notice('Gespeicherter Draft und zugehörige Kommentare gelöscht.');
+ }catch(e){notice('Löschen fehlgeschlagen: '+e.message);button.disabled=false;}
+}
+async function savePositions(){
+ if(!selectedArchive)return notice('Zuerst einen Draft auswählen.');
+ const positions=new Map([...document.querySelectorAll('.analysis-position')].map(x=>[Number(x.dataset.turn),Number(x.value)]));
+ const updated=(selectedArchive.actions||[]).map(a=>{
+  const {position,...rest}=a;const p=positions.get(Number(a.turn_number));return p?{...rest,position:p}:rest;
+ });
+ const {error}=await db.from('draft_archives').update({actions:updated}).eq('id',selectedArchive.id);
+ if(error)return notice('Positionsspeicherung fehlgeschlagen: '+error.message);
+ selectedArchive.actions=updated;const row=archives.find(x=>x.id===selectedArchive.id);if(row)row.actions=updated;
+ notice('Pick-Positionen gespeichert.');await selectArchive(selectedArchive.id);
+}
+function openAnalysis(id){
+ const nav=document.querySelector('[data-view="analysis"]');nav?.click();
+ if(id)el('analysis-select').value=String(id);
+ selectArchive(id||el('analysis-select').value);
+}
+async function saveArchive(){if(!state.loaded)return;const name=el('draft-save-name').value.trim();if(!name){notice('Bitte einen Draft-Namen eingeben.');return}const {data,error}=await db.from('draft_archives').insert({name,our_side:state.side,actions:state.actions.map(a=>({turn_number:a.turn_number,hero_id:a.hero_id}))}).select().single();if(error){notice('Speichern fehlgeschlagen: '+error.message);return}selectedArchive=data;el('draft-save-name').value='';await loadArchives();el('draft-archive-select').value=String(data.id);await selectArchive(data.id);notice('Draft gespeichert.');}
 async function restoreArchive(){if(!selectedArchive)return notice('Zuerst einen gespeicherten Draft auswählen.');if(!confirm('Aktiven Draft durch diesen gespeicherten Draft ersetzen? Der aktuelle Draft wird überschrieben.'))return;const rows=Array.isArray(selectedArchive.actions)?selectedArchive.actions:[];const valid=rows.every((a,i)=>Number(a.turn_number)===i+1&&Number(a.hero_id)>0)&&rows.length<=24&&new Set(rows.map(x=>Number(x.hero_id))).size===rows.length;if(!valid)return notice('Gespeicherter Draft ist ungültig.');const del=await db.from('draft_actions').delete().gte('turn_number',1);if(del.error)return notice(del.error.message);const upd=await db.from('draft_settings').update({our_side:selectedArchive.our_side}).eq('id',1);if(upd.error)return notice(upd.error.message);if(rows.length){const ins=await db.from('draft_actions').insert(rows.map(x=>({turn_number:Number(x.turn_number),hero_id:Number(x.hero_id)})));if(ins.error)return notice('Wiederherstellung unvollständig: '+ins.error.message)}await load();notice('Draft geladen.');}
 async function loadComments(){if(!selectedArchive){el('draft-comments').innerHTML='<p>Wähle zuerst einen gespeicherten Draft.</p>';return}const {data,error}=await db.from('draft_comments').select('*').eq('draft_id',selectedArchive.id).order('created_at',{ascending:true});if(error){notice(error.message);return}const players=window.getDraftData?.().players||[];el('draft-comments').innerHTML=(data||[]).map(c=>`<div class="draft-comment"><b>${esc(players.find(p=>String(p.id)===String(c.player_id))?.name||'Spieler')}</b><small>${new Date(c.created_at).toLocaleString('de-DE')}</small><p>${esc(c.body)}</p></div>`).join('')||'<p>Noch keine Kommentare.</p>';}
 async function addComment(e){e.preventDefault();if(!selectedArchive)return notice('Zuerst einen gespeicherten Draft auswählen.');const player_id=Number(el('draft-comment-player').value),body=el('draft-comment-text').value.trim();if(!player_id||!body)return;const {error}=await db.from('draft_comments').insert({draft_id:selectedArchive.id,player_id,body});if(error)return notice('Kommentar fehlgeschlagen: '+error.message);el('draft-comment-text').value='';await loadComments();}
 function updateCommentPlayers(){const players=window.getDraftData?.().players||[],sel=el('draft-comment-player'),old=sel.value;sel.innerHTML=players.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');if(players.some(p=>String(p.id)===old))sel.value=old;else if(el('active-player'))sel.value=el('active-player').value;}
-async function load(){db=client();if(!db){notice('Supabase nicht geladen');return}try{const [a,s]=await Promise.all([db.from('draft_actions').select('*').order('turn_number'),db.from('draft_settings').select('*').eq('id',1).single()]);if(a.error)throw a.error;if(s.error)throw s.error;state.actions=a.data||[];state.side=s.data.our_side;state.loaded=true;render();updateCommentPlayers();await loadArchives();if(selectedArchive)await selectArchive()}catch(e){notice('Draft-Datenbank fehlt oder nicht erreichbar: '+e.message)}}
+async function load(){db=client();if(!db){notice('Supabase nicht geladen');return}try{const [a,s]=await Promise.all([db.from('draft_actions').select('*').order('turn_number'),db.from('draft_settings').select('*').eq('id',1).single()]);if(a.error)throw a.error;if(s.error)throw s.error;state.actions=a.data||[];state.side=s.data.our_side;state.loaded=true;render();updateCommentPlayers();await loadArchives();if(selectedArchive)await selectArchive(selectedArchive.id)}catch(e){notice('Draft-Datenbank fehlt oder nicht erreichbar: '+e.message)}}
 async function choose(id){if(state.busy||!next()||used().has(id))return;state.busy=true;try{const {error}=await db.from('draft_actions').insert({turn_number:state.actions.length+1,hero_id:id});if(error)throw error;await load()}catch(e){notice('Draft-Aktion fehlgeschlagen: '+e.message);await load()}finally{state.busy=false}}
 async function undo(){if(state.busy||!state.actions.length)return;state.busy=true;try{const {error}=await db.from('draft_actions').delete().eq('turn_number',state.actions.length);if(error)throw error;await load()}catch(e){notice('Rückgängig fehlgeschlagen: '+e.message)}finally{state.busy=false}}
 async function reset(){if(!confirm('Gesamten Draft löschen? Kalender, Hero-Pool und Roster bleiben erhalten.'))return;state.busy=true;try{const {error}=await db.from('draft_actions').delete().gte('turn_number',1);if(error)throw error;await load()}catch(e){notice('Zurücksetzen fehlgeschlagen: '+e.message)}finally{state.busy=false}}
-function init(){el('draft-catalog').onclick=e=>{const b=e.target.closest('[data-hero]');if(b)choose(Number(b.dataset.hero))};el('draft-recs').onclick=e=>{const b=e.target.closest('[data-recommend]');if(b)choose(Number(b.dataset.recommend))};el('draft-undo').onclick=undo;el('draft-reset').onclick=reset;el('draft-search').oninput=render;el('draft-player').onchange=renderRecommendations;el('draft-confidence').oninput=renderRecommendations;el('draft-only-free').onchange=renderRecommendations;el('draft-save').onclick=saveArchive;el('draft-archive-select').onchange=selectArchive;el('draft-open').onclick=selectArchive;el('draft-restore').onclick=restoreArchive;el('draft-comment-form').onsubmit=addComment;el('draft-side').onchange=async e=>{if(state.actions.length&&!confirm('First/Second Pick ändern? Bestehende Draft-Aktionen bleiben erhalten und werden neu zugeordnet.')){e.target.value=state.side;return}const v=e.target.value;const {error}=await db.from('draft_settings').update({our_side:v}).eq('id',1);if(error)notice(error.message);await load()};load();}
-window.renderDraft=render;
+function init(){el('draft-catalog').onclick=e=>{const b=e.target.closest('[data-hero]');if(b)choose(Number(b.dataset.hero))};el('draft-recs').onclick=e=>{const b=e.target.closest('[data-recommend]');if(b)choose(Number(b.dataset.recommend))};el('draft-undo').onclick=undo;el('draft-reset').onclick=reset;el('draft-search').oninput=render;el('draft-player').onchange=renderRecommendations;el('draft-confidence').oninput=renderRecommendations;el('draft-only-free').onchange=renderRecommendations;el('draft-save').onclick=saveArchive;el('draft-archive-select').onchange=e=>{selectedArchive=archives.find(a=>String(a.id)===e.target.value)||null};el('analysis-select').onchange=e=>selectArchive(e.target.value);el('analysis-refresh').onclick=loadArchives;el('analysis-delete').onclick=deleteArchive;el('draft-go-analysis').onclick=()=>openAnalysis(el('draft-archive-select').value);el('draft-archive-summary').onclick=e=>{if(e.target.id==='analysis-save-positions')savePositions()};el('draft-restore').onclick=restoreArchive;el('draft-comment-form').onsubmit=addComment;el('draft-side').onchange=async e=>{if(state.actions.length&&!confirm('First/Second Pick ändern? Bestehende Draft-Aktionen bleiben erhalten und werden neu zugeordnet.')){e.target.value=state.side;return}const v=e.target.value;const {error}=await db.from('draft_settings').update({our_side:v}).eq('id',1);if(error)notice(error.message);await load()};load();}
+window.renderDraft=render;window.openDraftAnalysis=()=>{loadArchives().then(()=>{if(selectedArchive)selectArchive(selectedArchive.id)})};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
