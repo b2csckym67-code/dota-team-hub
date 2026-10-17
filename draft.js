@@ -19,6 +19,26 @@ function used(){return new Set(state.actions.map(x=>Number(x.hero_id)))}
 function next(){return order[state.actions.length]}
 function our(t){return t===state.side}
 function slot(a){const h=hById(a.hero_id);return `<div class="draft-tile"><img src="${img(h)}" alt=""><span>${esc(h?.name||'Unbekannt')}</span></div>`}
+// Compact two-sided hero strip, with pick portraits and seven ban portraits per team.
+function renderOverview(actions, side){
+ const buckets={our:{pick:[],ban:[]},their:{pick:[],ban:[]}};
+ for(const a of actions){
+  const step=order[Number(a.turn_number)-1];
+  if(!step)continue;
+  buckets[step[0]===side?'our':'their'][step[1]].push(a);
+ }
+ const portrait=(a,type,i)=>{
+  if(!a)return `<div class="overview-slot empty" aria-label="${type} ${i+1} noch offen"><span>${i+1}</span></div>`;
+  const h=hById(a.hero_id),pos=type==='Pick'?(Number(a.position)||0):0;
+  return `<div class="overview-slot filled ${type==='Ban'?'ban':''}" title="${esc(h?.name||'Unbekannt')} · ${type} ${i+1}${pos?' · Pos '+pos:''}"><img loading="lazy" src="${img(h)}" alt="${esc(h?.name||'Unbekannt')}"><span class="overview-slot-index">${i+1}</span>${type==='Ban'?'<span class="overview-cross" aria-hidden="true">×</span>':''}${pos?`<span class="overview-pos">P${pos}</span>`:''}</div>`;
+ };
+ const team=(key,name)=>{
+  const picks=Array.from({length:5},(_,i)=>portrait(buckets[key].pick[i],'Pick',i)).join('');
+  const bans=Array.from({length:7},(_,i)=>portrait(buckets[key].ban[i],'Ban',i)).join('');
+  return `<section class="overview-team ${key}"><h4>${name}</h4><div class="overview-team-body"><div class="overview-ban-rail"><span>Bans</span><div class="overview-ban-grid">${bans}</div></div><div class="overview-picks"><span>Picks</span><div class="overview-pick-grid">${picks}</div></div></div></section>`;
+ };
+ return `<div class="overview-versus">${team('our','Unser Team')}<div class="overview-vs">VS</div>${team('their','Gegner')}</div>`;
+}
 function renderLiveTimeline(){
  const header='<div class="compact-team-header"><span>Unser Team</span><span>Gegner</span></div>';
  const rows=state.actions.map(a=>{
@@ -35,10 +55,7 @@ function renderLiveTimeline(){
 function render(){if(!state.loaded)return;
  const nextStep=next();el('draft-side').value=state.side;
  el('draft-status').innerHTML=nextStep?`<b>Schritt ${state.actions.length+1}/24</b> · <strong>${our(nextStep[0])?'UNSER TEAM':'GEGNER'}</strong> · ${nextStep[1]==='ban'?'BAN':'PICK'}`:'<b>Draft abgeschlossen (24/24)</b>';
- for(const side of ['our','their'])for(const action of ['picks','bans']){
- const list=state.actions.filter(a=>{const [team,type]=order[a.turn_number-1];return (side==='our'?our(team):!our(team))&&type===(action==='picks'?'pick':'ban')});
- el(`draft-${side}-${action}`).innerHTML=list.map(slot).join('')||'<span class="draft-empty">Noch keine</span>';
- }
+ el('draft-overview').innerHTML=renderOverview(state.actions,state.side);
  el('draft-history').innerHTML=renderLiveTimeline();
  const q=el('draft-search').value.trim().toLowerCase(),taken=used();
  el('draft-catalog').innerHTML=H().map((h,i)=>({...h,id:i+1})).filter(h=>h.name.toLowerCase().includes(q)).map(h=>`<button type="button" class="draft-choice ${taken.has(h.id)?'taken':''}" data-hero="${h.id}" ${taken.has(h.id)||!nextStep?'disabled':''}><img loading="lazy" src="${img(h)}" alt=""><span>${esc(h.name)}</span></button>`).join('');
@@ -83,7 +100,7 @@ function archiveSummary(a){
   const content=`<div class="analysis-action ${pick?'is-pick':'is-ban'}"><span class="analysis-step">${pick?'Pick':'Ban'} ${count} · Schritt ${action.turn_number}</span><div class="analysis-hero"><img src="${img(hero)}" alt=""><strong>${esc(hero?.name||'Unbekannt')}</strong></div>${pick?`<label>Position<select class="analysis-position" data-turn="${action.turn_number}" aria-label="Position für ${esc(hero?.name||'Pick')}">${options}</select></label>`:''}</div>`;
   return `<div class="analysis-turn"><div class="analysis-side">${ours?content:''}</div><div class="analysis-side">${ours?'':content}</div></div>`;
  }).join('');
- return `<div class="analysis-summary-header"><div><strong>${esc(a.name)}</strong><p>${actions.length}/24 Aktionen · ${a.our_side==='first'?'Unser Team: First Pick':'Unser Team: Second Pick'} · ${new Date(a.created_at).toLocaleString('de-DE')}</p></div><button id="analysis-save-positions" type="button" class="secondary">Positionen speichern</button></div><div class="analysis-columns">${cols}</div><div class="analysis-timeline">${rows||'<p>Noch keine Aktionen gespeichert.</p>'}</div><p class="hint">Picks können Position 1–5 zugewiesen werden. Die Zuordnung wird im gespeicherten Draft hinterlegt. Bans bleiben chronologisch sichtbar.</p>`;
+ return `<div class="analysis-summary-header"><div><strong>${esc(a.name)}</strong><p>${actions.length}/24 Aktionen · ${a.our_side==='first'?'Unser Team: First Pick':'Unser Team: Second Pick'} · ${new Date(a.created_at).toLocaleString('de-DE')}</p></div><button id="analysis-save-positions" type="button" class="secondary">Positionen speichern</button></div><div class="analysis-overview"><h4>Draft auf einen Blick</h4>${renderOverview(actions,a.our_side)}</div><div class="analysis-columns">${cols}</div><div class="analysis-timeline">${rows||'<p>Noch keine Aktionen gespeichert.</p>'}</div><p class="hint">Picks können Position 1–5 zugewiesen werden. Die Zuordnung wird im gespeicherten Draft hinterlegt. Bans bleiben chronologisch sichtbar.</p>`;
 }
 async function selectArchive(id){
  const selectedId=id===''?0:Number(id||el('analysis-select').value||el('draft-archive-select').value);
@@ -93,7 +110,21 @@ async function selectArchive(id){
  el('draft-archive-summary').innerHTML=selectedArchive?archiveSummary(selectedArchive):'<p>Gespeicherten Draft auswählen.</p>';
  el('analysis-meta').textContent=selectedArchive?`Erstellt: ${new Date(selectedArchive.created_at).toLocaleString('de-DE')}`:'Noch kein Draft ausgewählt';
  el('analysis-delete').disabled=!selectedArchive;
+ el('analysis-winner').value=selectedArchive?.winner||'';
+ el('analysis-match-id').value=selectedArchive?.match_id||'';
+ el('analysis-save-result').disabled=!selectedArchive;
  await loadComments();
+}
+async function saveResult(){
+ if(!selectedArchive)return notice('Zuerst einen gespeicherten Draft auswählen.');
+ const winner=el('analysis-winner').value||null;
+ const match_id=el('analysis-match-id').value.trim()||null;
+ if(match_id && !/^\d{1,40}$/.test(match_id))return notice('Match-ID darf nur Ziffern enthalten (maximal 40).');
+ const {data,error}=await db.from('draft_archives').update({winner,match_id}).eq('id',selectedArchive.id).select('id,winner,match_id').single();
+ if(error)return notice('Matchergebnis konnte nicht gespeichert werden: '+error.message);
+ selectedArchive.winner=data.winner;selectedArchive.match_id=data.match_id;
+ const row=archives.find(a=>String(a.id)===String(selectedArchive.id));if(row){row.winner=data.winner;row.match_id=data.match_id;}
+ notice('Matchergebnis gespeichert.');
 }
 async function deleteArchive(){
  if(!selectedArchive)return notice('Zuerst einen gespeicherten Draft auswählen.');
@@ -136,7 +167,7 @@ async function load(){db=client();renderRecommendations();if(!db){notice('Supaba
 async function choose(id){if(state.busy||!next()||used().has(id))return;state.busy=true;try{const {error}=await db.from('draft_actions').insert({turn_number:state.actions.length+1,hero_id:id});if(error)throw error;await load()}catch(e){notice('Draft-Aktion fehlgeschlagen: '+e.message);await load()}finally{state.busy=false}}
 async function undo(){if(state.busy||!state.actions.length)return;state.busy=true;try{const {error}=await db.from('draft_actions').delete().eq('turn_number',state.actions.length);if(error)throw error;await load()}catch(e){notice('Rückgängig fehlgeschlagen: '+e.message)}finally{state.busy=false}}
 async function reset(){if(!confirm('Gesamten Draft löschen? Kalender, Hero-Pool und Roster bleiben erhalten.'))return;state.busy=true;try{const {error}=await db.from('draft_actions').delete().gte('turn_number',1);if(error)throw error;await load()}catch(e){notice('Zurücksetzen fehlgeschlagen: '+e.message)}finally{state.busy=false}}
-function init(){el('draft-catalog').onclick=e=>{const b=e.target.closest('[data-hero]');if(b)choose(Number(b.dataset.hero))};el('draft-recs').onclick=e=>{const b=e.target.closest('[data-recommend]');if(b)choose(Number(b.dataset.recommend))};el('draft-undo').onclick=undo;el('draft-reset').onclick=reset;el('draft-search').oninput=render;el('draft-player').onchange=renderRecommendations;el('draft-rec-search').oninput=renderRecommendations;el('draft-rec-refresh').onclick=async()=>{try{await window.refreshDraftData?.();renderRecommendations()}catch(e){notice('Aktualisieren fehlgeschlagen: '+e.message)}};el('draft-confidence').oninput=renderRecommendations;el('draft-only-free').onchange=renderRecommendations;el('draft-save').onclick=saveArchive;el('draft-archive-select').onchange=e=>{selectedArchive=archives.find(a=>String(a.id)===e.target.value)||null};el('analysis-select').onchange=e=>selectArchive(e.target.value);el('analysis-refresh').onclick=loadArchives;el('analysis-delete').onclick=deleteArchive;el('draft-go-analysis').onclick=()=>openAnalysis(el('draft-archive-select').value);el('draft-archive-summary').onclick=e=>{if(e.target.id==='analysis-save-positions')savePositions()};el('draft-restore').onclick=restoreArchive;el('draft-comment-form').onsubmit=addComment;el('draft-side').onchange=async e=>{if(state.actions.length&&!confirm('First/Second Pick ändern? Bestehende Draft-Aktionen bleiben erhalten und werden neu zugeordnet.')){e.target.value=state.side;return}const v=e.target.value;const {error}=await db.from('draft_settings').update({our_side:v}).eq('id',1);if(error)notice(error.message);await load()};load();}
+function init(){el('draft-catalog').onclick=e=>{const b=e.target.closest('[data-hero]');if(b)choose(Number(b.dataset.hero))};el('draft-recs').onclick=e=>{const b=e.target.closest('[data-recommend]');if(b)choose(Number(b.dataset.recommend))};el('draft-undo').onclick=undo;el('draft-reset').onclick=reset;el('draft-search').oninput=render;el('draft-player').onchange=renderRecommendations;el('draft-rec-search').oninput=renderRecommendations;el('draft-rec-refresh').onclick=async()=>{try{await window.refreshDraftData?.();renderRecommendations()}catch(e){notice('Aktualisieren fehlgeschlagen: '+e.message)}};el('draft-confidence').oninput=renderRecommendations;el('draft-only-free').onchange=renderRecommendations;el('draft-save').onclick=saveArchive;el('draft-archive-select').onchange=e=>{selectedArchive=archives.find(a=>String(a.id)===e.target.value)||null};el('analysis-select').onchange=e=>selectArchive(e.target.value);el('analysis-refresh').onclick=loadArchives;el('analysis-delete').onclick=deleteArchive;el('analysis-save-result').onclick=saveResult;el('draft-go-analysis').onclick=()=>openAnalysis(el('draft-archive-select').value);el('draft-archive-summary').onclick=e=>{if(e.target.id==='analysis-save-positions')savePositions()};el('draft-restore').onclick=restoreArchive;el('draft-comment-form').onsubmit=addComment;el('draft-side').onchange=async e=>{if(state.actions.length&&!confirm('First/Second Pick ändern? Bestehende Draft-Aktionen bleiben erhalten und werden neu zugeordnet.')){e.target.value=state.side;return}const v=e.target.value;const {error}=await db.from('draft_settings').update({our_side:v}).eq('id',1);if(error)notice(error.message);await load()};load();}
 window.renderDraft=()=>{if(state.loaded)render();else renderRecommendations()};window.openDraftAnalysis=()=>{loadArchives().then(()=>{if(selectedArchive)selectArchive(selectedArchive.id)})};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
