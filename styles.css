@@ -147,3 +147,17 @@ body:not(.site-locked) .site-lock{display:none}
 .draft-status .current-draft-note{color:#ffdb6d;font-weight:800}
 @media(max-width:1100px){.draft-sidebars{grid-row:auto}}
 @media(max-width:640px){.opponent-hero-form{grid-template-columns:1fr}.opponent-team-controls{flex-direction:column;align-items:stretch}}
+
+/* v12: compact, individually collapsible position recommendations */
+.draft-position-group{padding:0;overflow:hidden}
+.draft-position-group>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 12px;cursor:pointer;list-style:none;font-size:14px;font-weight:750;color:#f2f5fc}
+.draft-position-group>summary::-webkit-details-marker{display:none}
+.draft-position-group>summary::before{content:'▸';color:#f06b83;font-size:14px}
+.draft-position-group[open]>summary::before{content:'▾'}
+.draft-position-group>summary span:first-of-type{flex:1}
+.draft-position-group>summary small{display:block;font-size:11px;color:#91a3bd;margin-top:3px;font-weight:400}
+.draft-position-count{white-space:nowrap;font-size:11px;color:#91a3bd;font-weight:500}
+.draft-position-group>.draft-rec-list{padding:0 10px 11px;max-height:320px;overflow:auto}
+.draft-rec-groups{gap:8px;max-height:none;overflow:visible}
+.draft-flex-panel .draft-rec-list{max-height:280px;overflow:auto}
+.draft-flex-panel .hint{margin:6px 0 12px}

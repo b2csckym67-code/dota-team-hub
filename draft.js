@@ -67,6 +67,7 @@ function render(){if(!state.loaded)return;
  renderRecommendations();
  window.opponentHub?.renderDraftSuggestions?.(used());
 }
+const positionExpanded=new Map();
 function renderRecommendations(){
  const data=typeof window.getDraftData==='function'?window.getDraftData():{roster:[],ratings:[],players:[]};
  const select=el('draft-player'),previous=select.value||'all';
@@ -79,8 +80,9 @@ function renderRecommendations(){
   const assigned=data.roster.find(r=>Number(r.position)===pos)?.player_id;
   const assignedName=data.players.find(p=>String(p.id)===String(assigned))?.name||'Nicht besetzt';
   const rows=data.ratings.filter(r=>Number(r.position)===pos&&Number(r.confidence)>=min&&(target==='all'||String(r.player_id)===target)&&(!search||(hById(r.hero_id)?.name||'').toLocaleLowerCase('de').includes(search))&&(!free||!used().has(Number(r.hero_id)))).sort((a,b)=>b.confidence-a.confidence||String(hById(a.hero_id)?.name).localeCompare(String(hById(b.hero_id)?.name)));
-  return `<section class="draft-position-group"><h4>Pos ${pos} · ${labels[pos]} <small>Roster: ${esc(assignedName)}</small></h4><div class="draft-rec-list">${rows.map(r=>{const h=hById(r.hero_id),p=data.players.find(p=>String(p.id)===String(r.player_id));return `<button class="draft-rec" data-recommend="${r.hero_id}" ${used().has(Number(r.hero_id))||!next()?'disabled':''}><img loading="lazy" src="${img(h)}" alt=""><span><b>${esc(h?.name||'?')}</b><small>${esc(p?.name||'?')} · Pos ${pos}</small></span><strong>${r.confidence}/10</strong></button>`}).join('')||'<div class="empty">Keine passenden Helden</div>'}</div></section>`
+  return `<details class="draft-position-group" data-position="${pos}" ${positionExpanded.get(pos)?'open':''}><summary><span>Pos ${pos} · ${labels[pos]}<small>Roster: ${esc(assignedName)}</small></span><span class="draft-position-count">${rows.length} Helden</span></summary><div class="draft-rec-list">${rows.map(r=>{const h=hById(r.hero_id),p=data.players.find(p=>String(p.id)===String(r.player_id));return `<button class="draft-rec" data-recommend="${r.hero_id}" ${used().has(Number(r.hero_id))||!next()?'disabled':''}><img loading="lazy" src="${img(h)}" alt=""><span><b>${esc(h?.name||'?')}</b><small>${esc(p?.name||'?')} · Pos ${pos}</small></span><strong>${r.confidence}/10</strong></button>`}).join('')||'<div class="empty">Keine passenden Helden</div>'}</div></details>`
  }).join('');
+ el('draft-recs').querySelectorAll('details[data-position]').forEach(d=>d.addEventListener('toggle',()=>positionExpanded.set(Number(d.dataset.position),d.open)));
  // Flex picks: at least two distinct players, across all five positions.
  const grouped=new Map();
  for(const r of data.ratings){
