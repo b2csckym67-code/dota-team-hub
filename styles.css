@@ -103,3 +103,47 @@ body:not(.site-locked) .site-lock{display:none}
 .overview-pos{display:none!important}
 @media(max-width:900px){.overview-team-body{grid-template-columns:clamp(68px,30%,110px) minmax(0,1fr);gap:5px}.overview-ban-grid{gap:3px}.overview-slot-index{font-size:11px;padding:1px 3px}.overview-ban-grid .overview-slot-index{font-size:12px}}
 @media(max-width:600px){.overview-team-body{grid-template-columns:48px minmax(0,1fr);gap:3px}.overview-ban-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:2px}.overview-pick-grid{gap:2px}.overview-slot-index,.overview-ban-grid .overview-slot-index{font-size:9px;padding:1px 2px;left:1px;bottom:1px}.overview-cross{font-size:14px;right:0;top:-2px}}
+
+/* V11: Gegneranalyse und ein-/ausklappbare Captain-Panels */
+.draft-sidebars{min-width:0;display:grid;gap:12px;align-content:start}
+.draft-sidebars .panel{margin:0}
+.draft-sidebars details>summary{font-weight:800;cursor:pointer;list-style:none;padding:4px 0 10px;color:#edf2fb}
+.draft-sidebars details>summary::-webkit-details-marker{display:none}
+.draft-sidebars details>summary::before{content:'▾';color:#f06b83;margin-right:8px}
+.draft-sidebars details:not([open])>summary::before{content:'▸'}
+.draft-sidebars details:not([open]){padding-bottom:9px}
+.draft-collapsible-content{min-width:0}
+.draft-collapsible-content>h3{font-size:14px;margin:4px 0 8px}
+.flex-pick-panel{border-top:1px solid #36475f;margin-top:18px;padding-top:12px}
+.flex-pick-panel h4{margin:0 0 7px}
+.flex-pick-panel .draft-rec-list{max-height:340px;overflow:auto}
+.flex-rec-players{display:block;color:#9cacc1;font-size:11px;line-height:1.4}
+.draft-opponent-panel label{margin:12px 0}
+.opponent-ban-recs{display:grid;gap:7px;max-height:390px;overflow:auto;margin:12px 0}
+.opponent-ban-row{display:flex;align-items:center;gap:9px;border:1px solid #36475f;background:#101a29;border-radius:7px;padding:7px}
+.opponent-ban-row img{width:66px;height:42px;object-fit:cover;border-radius:4px}
+.opponent-ban-row .opponent-ban-text{flex:1;min-width:0}
+.opponent-ban-row strong,.opponent-ban-row small{display:block}
+.opponent-ban-row small{color:#a9b9cf;font-size:11px}
+.opponent-ban-row .ban-count{color:#f6bf74;font-weight:800;font-size:12px}
+.opponent-team-controls{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+.opponent-team-controls label{min-width:210px;flex:1}
+.opponent-player-rows{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:12px 0}
+.opponent-player-rows label{display:block}
+.opponent-hero-form{display:grid;grid-template-columns:minmax(170px,1fr) minmax(200px,2fr);gap:12px}
+.opponent-hero-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:7px;max-height:285px;overflow:auto;margin:12px 0;padding:7px;border:1px solid #36475f;border-radius:9px}
+.opponent-hero-grid button{padding:4px;text-align:left;font-size:11px;background:#18263b;color:#eaf1fb;border:1px solid #35475d;min-width:0}
+.opponent-hero-grid button img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:4px;display:block;margin-bottom:4px}
+.opponent-hero-grid button.selected{border:2px solid #f5c04f}
+.opponent-hero-list{display:grid;gap:10px;margin-top:12px}
+.opponent-hero-group{background:#101a29;border:1px solid #36475f;border-radius:9px;padding:10px}
+.opponent-hero-group h4{margin:0 0 9px}
+.opponent-hero-chips{display:flex;flex-wrap:wrap;gap:7px}
+.opponent-hero-chip{display:flex;align-items:center;gap:6px;background:#1e3048;border-radius:5px;padding:4px 6px;font-size:11px}
+.opponent-hero-chip img{width:45px;height:28px;object-fit:cover;border-radius:3px}
+.opponent-hero-chip button{padding:2px 7px;min-height:25px}
+.overview-slot.current{outline:3px solid #ffd447;outline-offset:1px;box-shadow:0 0 0 2px #5a4200,0 0 18px #ffcf4055;z-index:2}
+.overview-slot.current .overview-slot-index{background:#f7cb42!important;color:#111b2a!important;border-color:#ffe58b!important}
+.draft-status .current-draft-note{color:#ffdb6d;font-weight:800}
+@media(max-width:1100px){.draft-sidebars{grid-row:auto}}
+@media(max-width:640px){.opponent-hero-form{grid-template-columns:1fr}.opponent-team-controls{flex-direction:column;align-items:stretch}}
