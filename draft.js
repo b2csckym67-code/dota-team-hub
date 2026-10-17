@@ -19,6 +19,19 @@ function used(){return new Set(state.actions.map(x=>Number(x.hero_id)))}
 function next(){return order[state.actions.length]}
 function our(t){return t===state.side}
 function slot(a){const h=hById(a.hero_id);return `<div class="draft-tile"><img src="${img(h)}" alt=""><span>${esc(h?.name||'Unbekannt')}</span></div>`}
+function renderLiveTimeline(){
+ const header='<div class="compact-team-header"><span>Unser Team</span><span>Gegner</span></div>';
+ const rows=state.actions.map(a=>{
+  const step=order[Number(a.turn_number)-1];if(!step)return '';
+  const isOur=our(step[0]),isPick=step[1]==='pick',hero=hById(a.hero_id);
+  const previous=state.actions.filter(x=>Number(x.turn_number)<=Number(a.turn_number)&&order[Number(x.turn_number)-1]?.[0]===step[0]&&order[Number(x.turn_number)-1]?.[1]===step[1]);
+  const label=(isPick?'Pick ':'Ban ')+previous.length;
+  const pos=isPick&&isOur?inferredPosition(a):0;
+  const content=`<div class="compact-draft-action ${isPick?'is-pick':'is-ban'}"><span class="compact-action-label">${label}${pos?' · Pos '+pos:''}</span><img loading="lazy" src="${img(hero)}" alt=""><strong>${esc(hero?.name||'Unbekannt')}</strong><small>#${a.turn_number}</small></div>`;
+  return `<div class="compact-draft-turn"><div>${isOur?content:''}</div><div>${isOur?'':content}</div></div>`;
+ }).join('');
+ return header+`<div class="compact-draft-rows">${rows||'<p class="hint">Noch keine Aktionen.</p>'}</div>`;
+}
 function render(){if(!state.loaded)return;
  const nextStep=next();el('draft-side').value=state.side;
  el('draft-status').innerHTML=nextStep?`<b>Schritt ${state.actions.length+1}/24</b> · <strong>${our(nextStep[0])?'UNSER TEAM':'GEGNER'}</strong> · ${nextStep[1]==='ban'?'BAN':'PICK'}`:'<b>Draft abgeschlossen (24/24)</b>';
@@ -26,7 +39,7 @@ function render(){if(!state.loaded)return;
  const list=state.actions.filter(a=>{const [team,type]=order[a.turn_number-1];return (side==='our'?our(team):!our(team))&&type===(action==='picks'?'pick':'ban')});
  el(`draft-${side}-${action}`).innerHTML=list.map(slot).join('')||'<span class="draft-empty">Noch keine</span>';
  }
- el('draft-history').innerHTML=state.actions.map(a=>{const [team,type]=order[a.turn_number-1];return `<div><span>${a.turn_number}. ${our(team)?'Wir':'Gegner'} · ${type==='ban'?'Ban':'Pick'}</span><b>${esc(hById(a.hero_id)?.name||'?')}</b></div>`}).join('')||'<p>Noch keine Aktionen</p>';
+ el('draft-history').innerHTML=renderLiveTimeline();
  const q=el('draft-search').value.trim().toLowerCase(),taken=used();
  el('draft-catalog').innerHTML=H().map((h,i)=>({...h,id:i+1})).filter(h=>h.name.toLowerCase().includes(q)).map(h=>`<button type="button" class="draft-choice ${taken.has(h.id)?'taken':''}" data-hero="${h.id}" ${taken.has(h.id)||!nextStep?'disabled':''}><img loading="lazy" src="${img(h)}" alt=""><span>${esc(h.name)}</span></button>`).join('');
  renderRecommendations();
